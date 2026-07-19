@@ -557,10 +557,18 @@ impl Client {
         {
             // SAFETY: `userdata` is the boxed `F`. Both spans are handed over to
             // the callback and adopted exactly once here.
+            //
+            // The spans are adopted *inside* the dispatch closure so the work sits
+            // under `callback::guard`'s `catch_unwind`. Adopting them beforehand
+            // would let a panic — an allocation failure while building either
+            // `Vec`, say — unwind out of this `extern "C"` function and abort the
+            // host process.
             unsafe {
-                let inputs = take_device_span(input_devices);
-                let outputs = take_device_span(output_devices);
-                callback::dispatch_mut::<F>(userdata, move |f| f(inputs, outputs))
+                callback::dispatch_mut::<F>(userdata, move |f| {
+                    let inputs = take_device_span(input_devices);
+                    let outputs = take_device_span(output_devices);
+                    f(inputs, outputs)
+                })
             }
         }
         // SAFETY: the SDK owns the boxed closure and frees it via `free_fn`.

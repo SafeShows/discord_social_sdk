@@ -315,10 +315,11 @@ impl Client {
             // moved out and the array released.
             unsafe {
                 callback::dispatch_once::<F>(userdata, |f| {
-                    let outcome = to_result(result).map(|()| {
-                        span::take(guilds, |raw| GuildMinimal::from_raw(raw))
-                    });
-                    f(outcome)
+                    // Claimed before the result is inspected: the SDK transfers this
+                    // payload regardless of outcome, so taking it only on success
+                    // would leak it on every failed request.
+                    let guilds = span::take(guilds, |raw| GuildMinimal::from_raw(raw));
+                    f(to_result(result).map(|()| guilds))
                 })
             }
         }
@@ -355,10 +356,11 @@ impl Client {
             // moved out and the array released.
             unsafe {
                 callback::dispatch_once::<F>(userdata, |f| {
-                    let outcome = to_result(result).map(|()| {
-                        span::take(guild_channels, |raw| GuildChannel::from_raw(raw))
-                    });
-                    f(outcome)
+                    // Claimed before the result is inspected: the SDK transfers this
+                    // payload regardless of outcome, so taking it only on success
+                    // would leak it on every failed request.
+                    let channels = span::take(guild_channels, |raw| GuildChannel::from_raw(raw));
+                    f(to_result(result).map(|()| channels))
                 })
             }
         }
@@ -449,8 +451,11 @@ impl Client {
             // SAFETY: `invite_url` is transferred to us and must be freed, so it is taken.
             unsafe {
                 callback::dispatch_once::<F>(userdata, |f| {
-                    let outcome = to_result(result).map(|()| string::take(invite_url));
-                    f(outcome)
+                    // Claimed before the result is inspected: the SDK transfers this
+                    // payload regardless of outcome, so taking it only on success
+                    // would leak it on every failed request.
+                    let invite_url = string::take(invite_url);
+                    f(to_result(result).map(|()| invite_url))
                 })
             }
         }

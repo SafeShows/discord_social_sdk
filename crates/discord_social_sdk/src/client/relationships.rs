@@ -553,13 +553,15 @@ impl Client {
             // pointer itself belongs to the SDK and is not freed here.
             unsafe {
                 callback::dispatch_once::<F>(userdata, |f| {
-                    let outcome = to_result(result).map(|()| {
-                        if user.is_null() {
-                            None
-                        } else {
-                            Some(User::from_raw(*user))
-                        }
-                    });
+                    // Claimed before the result is inspected: the SDK transfers this
+                    // payload regardless of outcome, so taking it only on success
+                    // would leak it on every failed request.
+                    let user = if user.is_null() {
+                        None
+                    } else {
+                        Some(User::from_raw(*user))
+                    };
+                    let outcome = to_result(result).map(|()| user);
                     f(outcome)
                 })
             }

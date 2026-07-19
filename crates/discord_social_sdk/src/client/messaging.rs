@@ -93,11 +93,11 @@ where
 
 /// Trampoline for the two message-fetching callbacks.
 ///
-/// The `Discord_MessageHandleSpan` is **borrowed**: the SDK frees the array and
-/// every handle in it as soon as the callback returns. Each element is therefore
-/// cloned into an owned [`Message`] rather than adopted, so the [`Vec`] handed
-/// to the closure outlives the callback. Adopting them instead would double
-/// free.
+/// The `Discord_MessageHandleSpan` is **owned**: the SDK transfers the array and
+/// every handle in it, exactly as the official C++ wrapper does when it adopts
+/// each element as `DiscordObjectState::Owned` and then frees the array. Each
+/// element is therefore moved out rather than cloned, and the array released.
+/// Treating the span as borrowed would leak every message in it.
 unsafe extern "C" fn messages_tramp<F>(
     result: *mut sys::Discord_ClientResult,
     messages: sys::Discord_MessageHandleSpan,
@@ -109,10 +109,11 @@ unsafe extern "C" fn messages_tramp<F>(
     // as owned and then frees the array — so elements are moved out, not cloned.
     unsafe {
         callback::dispatch_once::<F>(userdata, |f| {
-            let outcome = to_result(result).map(|()| {
-                span::take(messages, |raw| Message::from_raw(raw))
-            });
-            f(outcome)
+            // Claimed before the result is inspected: the SDK transfers the span
+            // and every handle in it regardless of outcome, so taking it only on
+            // success would leak the array and all its messages on every failure.
+            let messages = span::take(messages, |raw| Message::from_raw(raw));
+            f(to_result(result).map(|()| messages))
         })
     }
 }
@@ -381,15 +382,15 @@ impl Client {
         ) where
             F: FnOnce(Result<Vec<UserMessageSummary>>) + 'static,
         {
-            // SAFETY: the span is borrowed — the SDK frees it once this
-            // callback — the C++ wrapper adopts each element as owned and frees the
-            // array — so summaries are moved out rather than cloned.
+            // SAFETY: the span is owned — the C++ wrapper adopts each element and
+            // frees the array — so summaries are moved out rather than cloned.
             unsafe {
                 callback::dispatch_once::<F>(userdata, |f| {
-                    let outcome = to_result(result).map(|()| {
-                        span::take(summaries, |raw| UserMessageSummary::from_raw(raw))
-                    });
-                    f(outcome)
+                    // Claimed before the result is inspected: the SDK transfers this
+                    // payload regardless of outcome, so taking it only on success
+                    // would leak it on every failed request.
+                    let summaries = span::take(summaries, |raw| UserMessageSummary::from_raw(raw));
+                    f(to_result(result).map(|()| summaries))
                 })
             }
         }

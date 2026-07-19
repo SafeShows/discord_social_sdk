@@ -235,8 +235,11 @@ impl Client {
             // so it is viewed rather than taken.
             unsafe {
                 callback::dispatch_once::<F>(userdata, |f| {
-                    let outcome = to_result(result).map(|()| string::take(join_secret));
-                    f(outcome)
+                    // Claimed before the result is inspected: the SDK transfers this
+                    // payload regardless of outcome, so taking it only on success
+                    // would leak it on every failed request.
+                    let join_secret = string::take(join_secret);
+                    f(to_result(result).map(|()| join_secret))
                 })
             }
         }
@@ -266,9 +269,9 @@ impl Client {
     /// Join requests arrive here too, distinguished by
     /// [`ActivityActionType::JoinRequest`](crate::enums::ActivityActionType).
     ///
-    /// The invite is **borrowed**: it belongs to the SDK and is freed as soon as
-    /// the handler returns. To keep it, clone it out with
-    /// [`Clone::clone`].
+    /// The invite is passed by reference so reading a few fields needs no clone.
+/// It is owned by this crate for the duration of the handler and dropped
+/// afterwards, so clone it if you need it to outlive the call.
     pub fn on_activity_invite_created<F>(&mut self, callback: F)
     where
         F: FnMut(&ActivityInvite) + 'static,
@@ -291,8 +294,9 @@ impl Client {
     /// joinable again if they rejoin. See
     /// [`ActivityInvite::is_valid`](crate::activity::ActivityInvite::is_valid).
     ///
-    /// The invite is **borrowed** on the same terms as
-    /// [`on_activity_invite_created`](Self::on_activity_invite_created).
+    /// The invite is passed by reference and dropped after the handler returns;
+/// clone it if you need to keep it. Same terms as
+/// [`on_activity_invite_created`](Self::on_activity_invite_created).
     pub fn on_activity_invite_updated<F>(&mut self, callback: F)
     where
         F: FnMut(&ActivityInvite) + 'static,

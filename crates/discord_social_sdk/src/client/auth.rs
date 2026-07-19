@@ -135,16 +135,22 @@ unsafe extern "C" fn token_tramp<F>(
 {
     // SAFETY: `userdata` is the boxed `F`. The strings are transferred to us —
     // the C++ wrapper frees them after the delegate runs — so they are taken.
+    //
+    // The token is built BEFORE the result is inspected, and deliberately not
+    // inside `Result::map`: the SDK hands over these strings whether or not the
+    // request succeeded, so claiming them only on success would leak all three
+    // on every failed exchange. Once taken they are ordinary `String`s, and
+    // dropping the unused `Token` on the error path frees them.
     unsafe {
         callback::dispatch_once::<F>(userdata, |f| {
-            let outcome = to_result(result).map(|()| Token {
+            let token = Token {
                 access_token: string::take(access_token),
                 refresh_token: string::take(refresh_token),
                 token_type: AuthorizationTokenType::from_raw(token_type),
                 expires_in,
                 scopes: string::take(scopes),
-            });
-            f(outcome)
+            };
+            f(to_result(result).map(|()| token))
         })
     }
 }
@@ -198,11 +204,14 @@ impl Client {
             // SAFETY: the strings are transferred to us and must be freed, so they are taken.
             unsafe {
                 callback::dispatch_once::<F>(userdata, |f| {
-                    let outcome = to_result(result).map(|()| AuthorizationCode {
+                    // Claimed before the result is inspected: the SDK transfers
+                    // both strings regardless of outcome, so taking them only on
+                    // success would leak them on every failed authorization.
+                    let code = AuthorizationCode {
                         code: string::take(code),
                         redirect_uri: string::take(redirect_uri),
-                    });
-                    f(outcome)
+                    };
+                    f(to_result(result).map(|()| code))
                 })
             }
         }
@@ -329,11 +338,13 @@ impl Client {
             // SAFETY: `name` is transferred to us and must be freed, so it is taken.
             unsafe {
                 callback::dispatch_once::<F>(userdata, |f| {
-                    let outcome = to_result(result).map(|()| CurrentUserInfo {
+                    // Claimed unconditionally; the SDK transfers `name` even when
+                    // the lookup failed.
+                    let info = CurrentUserInfo {
                         id,
                         name: string::take(name),
-                    });
-                    f(outcome)
+                    };
+                    f(to_result(result).map(|()| info))
                 })
             }
         }
@@ -375,14 +386,16 @@ impl Client {
             // exchange issues no refresh token, so that field is left empty.
             unsafe {
                 callback::dispatch_once::<F>(userdata, |f| {
-                    let outcome = to_result(result).map(|()| Token {
+                    // Claimed unconditionally; both strings are transferred even
+                    // when the exchange failed.
+                    let token = Token {
                         access_token: string::take(access_token),
                         refresh_token: String::new(),
                         token_type: AuthorizationTokenType::from_raw(token_type),
                         expires_in,
                         scopes: string::take(scopes),
-                    });
-                    f(outcome)
+                    };
+                    f(to_result(result).map(|()| token))
                 })
             }
         }

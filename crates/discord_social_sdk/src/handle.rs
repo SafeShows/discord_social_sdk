@@ -63,8 +63,18 @@ macro_rules! handle {
             ///
             /// Almost every SDK *getter* takes `self` as non-const even though it
             /// only reads, which would otherwise force `&mut self` on the whole
-            /// read API. The official C++ wrapper casts away const in exactly the
-            /// same places, so this is sound for read-only calls.
+            /// read API. The official C++ wrapper faces the same problem and
+            /// solves it by declaring its instance field `mutable`, handing out a
+            /// `Discord_X*` from a `const` method.
+            ///
+            /// Note that C++ constness is not a reliable guide to which SDK calls
+            /// mutate: `GetInputVolume` and `IsAuthenticated` are non-const while
+            /// the structurally identical `GetSelfDeafAll` and `GetChannelHandle`
+            /// are const. What makes this sound is narrower and does not depend on
+            /// the SDK's annotations: the memory borrowed through `&self` is only
+            /// the one-word `{ void* opaque }` struct, and no call reached through
+            /// this pointer reassigns that field. The functions that would —
+            /// `_Init`, `_Drop`, `_Clone`-into-self — are never called this way.
             ///
             /// Use this only for functions that genuinely read. Anything that
             /// mutates must go through [`as_raw_mut`](Self::as_raw_mut) and a
