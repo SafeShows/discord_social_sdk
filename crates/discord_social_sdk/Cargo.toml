@@ -11,3 +11,6 @@ discord_social_sdk_sys.workspace = true
 [features]
 default = []
 krisp = ["discord_social_sdk_sys/krisp"]
+
+# No `[package.metadata.docs.rs]`: docs.rs cannot build the `-sys` crate this
+# depends on. See that crate's manifest, and scripts/publish-docs.sh.

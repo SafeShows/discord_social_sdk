@@ -7,9 +7,15 @@ description = "Raw FFI bindings to the Discord Social SDK"
 links = "discord_partner_sdk"
 
 [build-dependencies]
-bindgen = "0.71"
+bindgen = "0.72.1"
 
 [features]
 default = []
 # Link the Krisp noise-cancellation variant of the SDK.
 krisp = []
+
+# No `[package.metadata.docs.rs]`: docs.rs cannot build this crate. It has no
+# network access and no copy of the Discord Social SDK, and the SDK's header is
+# not redistributable inside a published crate, so bindgen has no input there.
+# Documentation is built locally and published to GitHub Pages instead — see
+# scripts/publish-docs.sh.

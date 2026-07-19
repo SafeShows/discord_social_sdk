@@ -2,6 +2,8 @@
 
 Rust bindings to the [Discord Social SDK](https://discord.com/developers/docs/discord-social-sdk/overview).
 
+📖 **[API documentation](https://safeshows.github.io/discord_social_sdk/)**
+
 Two crates:
 
 | Crate | What it is |
@@ -101,6 +103,31 @@ thread-safe mode, which only matters if you use the `sys` crate directly.
 A panic inside one of your callbacks would otherwise abort the process, since
 unwinding out of an `extern "C"` function is not allowed. The wrapper catches
 panics at the boundary, reports them on stderr, and keeps the SDK running.
+
+## Documentation
+
+Docs are hosted on [GitHub Pages](https://safeshows.github.io/discord_social_sdk/),
+not docs.rs.
+
+docs.rs builds every crate itself, in a sandbox with no network access — and this
+crate cannot be built without Discord's SDK, whose header is not ours to
+redistribute inside a published package. So there is nothing for docs.rs to
+compile against, and it is left unconfigured rather than configured to fail.
+
+To rebuild and publish the docs from a machine that has the SDK:
+
+```bash
+./scripts/publish-docs.sh          # build and stage on the gh-pages branch
+./scripts/publish-docs.sh --push   # ...and push it
+```
+
+The script replaces the branch contents wholesale, adds the redirect and
+`.nojekyll` that Pages needs, and is a no-op when nothing changed. Pushing is
+opt-in because it rewrites the whole branch.
+
+Enable Pages once, under **Settings → Pages → Deploy from a branch → `gh-pages` / root**.
+
+Locally, `cargo doc --open` works as usual.
 
 ## License
 

@@ -1,9 +1,14 @@
 use std::env;
 use std::path::{Path, PathBuf};
 
-/// Locate the vendored SDK. `DISCORD_SOCIAL_SDK_DIR` wins; otherwise walk up from
-/// the crate root looking for a directory that holds `include/cdiscord.h`.
-fn find_sdk() -> PathBuf {
+/// Locate the SDK, or report that it is absent.
+///
+/// `DISCORD_SOCIAL_SDK_DIR` wins; otherwise walk up from the crate root looking
+/// for a directory holding `include/cdiscord.h`.
+///
+/// Absence is not automatically fatal. Generating bindings needs only the header,
+/// and a documentation build never links — see [`main`] for how those are split.
+fn find_sdk() -> Option<PathBuf> {
     if let Ok(dir) = env::var("DISCORD_SOCIAL_SDK_DIR") {
         let dir = PathBuf::from(dir);
         assert!(
@@ -11,7 +16,7 @@ fn find_sdk() -> PathBuf {
             "DISCORD_SOCIAL_SDK_DIR={} does not contain include/cdiscord.h",
             dir.display()
         );
-        return dir;
+        return Some(dir);
     }
 
     let manifest = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
@@ -19,17 +24,58 @@ fn find_sdk() -> PathBuf {
     loop {
         let candidate = cur.join("discord_social_sdk");
         if candidate.join("include/cdiscord.h").exists() {
-            return candidate;
+            return Some(candidate);
         }
-        match cur.parent() {
-            Some(p) => cur = p,
-            None => panic!(
-                "could not find the Discord Social SDK. Download it from \
-                 https://discord.com/developers/applications and either place it at \
-                 <workspace>/discord_social_sdk or set DISCORD_SOCIAL_SDK_DIR."
-            ),
-        }
+        cur = cur.parent()?;
     }
+}
+
+/// A copy of `cdiscord.h` checked into this crate, if one has been vendored.
+///
+/// This exists for environments that can build documentation but cannot supply
+/// the SDK — docs.rs above all, which has neither the SDK nor network access.
+/// Bindings need only the header; the libraries matter solely to linking.
+///
+/// Vendoring is opt-in and never automatic: the header is Discord's, and whether
+/// it may be redistributed inside a published crate is a licensing decision for
+/// whoever publishes. See the crate README.
+fn vendored_header() -> Option<PathBuf> {
+    let path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap())
+        .join("vendor")
+        .join("cdiscord.h");
+    path.exists().then_some(path)
+}
+
+/// Whether this build only has to produce documentation.
+///
+/// docs.rs sets `DOCS_RS`. Nothing is linked or run in that build, so the SDK
+/// libraries are not needed — only the header, to generate the bindings that
+/// `cargo doc` type-checks against.
+fn docs_only() -> bool {
+    env::var_os("DOCS_RS").is_some()
+}
+
+fn missing_sdk_panic(what: &str) -> ! {
+    panic!(
+        "{}",
+        concat!(
+            "could not find the Discord Social SDK ({what}).\n",
+            "\n",
+            "The SDK is a prebuilt package distributed by Discord and is not vendored ",
+            "into this crate, so it must be supplied out of band. Download it from ",
+            "https://discord.com/developers/applications, then either:\n",
+            "\n",
+            "  - place it at <workspace>/discord_social_sdk, or\n",
+            "  - set DISCORD_SOCIAL_SDK_DIR to its absolute path.\n",
+            "\n",
+            "The directory search only finds the SDK inside your own workspace. When ",
+            "this crate is built from the registry, or from the extracted copy that ",
+            "`cargo publish` verifies, it lies outside your workspace and the search ",
+            "cannot reach it, so DISCORD_SOCIAL_SDK_DIR (absolute, not relative) is ",
+            "required there."
+        )
+        .replace("{what}", what)
+    )
 }
 
 /// The SDK ships `debug` and `release` trees. Match the Cargo profile, but fall
@@ -45,20 +91,69 @@ fn sdk_profile(sdk: &Path) -> &'static str {
 }
 
 fn main() {
-    let sdk = find_sdk();
-    let profile = sdk_profile(&sdk);
-    let include = sdk.join("include");
-    let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
-
     println!("cargo:rerun-if-changed=wrapper.h");
+    println!("cargo:rerun-if-changed=vendor/cdiscord.h");
     println!("cargo:rerun-if-env-changed=DISCORD_SOCIAL_SDK_DIR");
-    println!("cargo:rerun-if-changed={}", include.join("cdiscord.h").display());
-    // Downstream crates (and integration tests) need these to stage the runtime library.
-    println!("cargo:root={}", sdk.display());
-    println!("cargo:profile={}", profile);
+    println!("cargo:rerun-if-env-changed=DOCS_RS");
 
-    emit_link_flags(&sdk, profile, &target_os);
-    generate_bindings(&include);
+    let sdk = find_sdk();
+
+    // Bindings need a header from somewhere; prefer the real SDK, fall back to a
+    // vendored copy. Linking needs the full SDK and is skipped when only
+    // documenting, which is what lets docs.rs succeed with the header alone.
+    let include_dir = match (&sdk, vendored_header()) {
+        (Some(sdk), _) => sdk.join("include"),
+        (None, Some(header)) => header
+            .parent()
+            .expect("vendored header always has a parent")
+            .to_path_buf(),
+        (None, None) => missing_sdk_panic(if docs_only() {
+            "documenting without the SDK requires a vendored header at vendor/cdiscord.h"
+        } else {
+            "no SDK directory and no vendored header"
+        }),
+    };
+
+    println!(
+        "cargo:rerun-if-changed={}",
+        include_dir.join("cdiscord.h").display()
+    );
+
+    match sdk {
+        Some(sdk) => {
+            let profile = sdk_profile(&sdk);
+            // Downstream crates and integration tests use these to stage the runtime library.
+            println!("cargo:root={}", sdk.display());
+            println!("cargo:profile={}", profile);
+
+            if docs_only() {
+                // Deliberately skip linking even though the SDK is present: a docs
+                // build produces no binary to link, and emitting link flags would
+                // only risk failing on a platform whose libraries are absent.
+                println!("cargo:warning=DOCS_RS set; skipping link configuration");
+            } else {
+                let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
+                emit_link_flags(&sdk, profile, &target_os);
+            }
+        }
+        None => {
+            // Header-only build. Fine for `cargo doc`; anything that links will fail
+            // at link time with an unresolved-symbol error, so say so plainly now.
+            assert!(
+                docs_only(),
+                concat!(
+                    "found a vendored header at vendor/cdiscord.h but no SDK.\n",
+                    "\n",
+                    "That is enough to generate bindings and build documentation, but ",
+                    "not enough to link. Set DISCORD_SOCIAL_SDK_DIR to an absolute SDK ",
+                    "path to build anything runnable."
+                )
+            );
+            println!("cargo:warning=building documentation against the vendored header; not linking");
+        }
+    }
+
+    generate_bindings(&include_dir);
 }
 
 fn emit_link_flags(sdk: &Path, profile: &str, target_os: &str) {
