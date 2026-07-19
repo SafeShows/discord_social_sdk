@@ -3,7 +3,13 @@ name = "discord_social_sdk_sys"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
 description = "Raw FFI bindings to the Discord Social SDK"
+readme = "README.md"
+keywords = ["discord", "sdk", "ffi", "bindings", "gamedev"]
+categories = ["external-ffi-bindings", "game-development"]
 links = "discord_partner_sdk"
 
 [build-dependencies]

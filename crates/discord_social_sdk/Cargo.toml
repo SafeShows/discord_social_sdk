@@ -3,7 +3,13 @@ name = "discord_social_sdk"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
 description = "Safe Rust bindings to the Discord Social SDK"
+readme = "README.md"
+keywords = ["discord", "sdk", "bindings", "gamedev", "voice"]
+categories = ["api-bindings", "game-development"]
 
 [dependencies]
 discord_social_sdk_sys.workspace = true

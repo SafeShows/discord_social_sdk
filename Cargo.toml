@@ -3,9 +3,15 @@ members = ["crates/discord_social_sdk_sys", "crates/discord_social_sdk"]
 resolver = "3"
 
 [workspace.package]
-version = "0.1.0"
+# 0.1.0 of the -sys crate is already on crates.io with a build script that gave a
+# poor error when the SDK was missing, and without README or metadata. That
+# version cannot be replaced, so the fixes ship as 0.1.1.
+version = "0.1.1"
 edition = "2024"
 license = "MIT"
+repository = "https://github.com/SafeShows/discord_social_sdk"
+homepage = "https://github.com/SafeShows/discord_social_sdk"
+documentation = "https://safeshows.github.io/discord_social_sdk/"
 
 [workspace.dependencies]
-discord_social_sdk_sys = { path = "crates/discord_social_sdk_sys", version = "0.1.0" }
+discord_social_sdk_sys = { path = "crates/discord_social_sdk_sys", version = "0.1.1" }
