@@ -1,0 +1,11 @@
+[workspace]
+members = ["crates/discord_social_sdk_sys", "crates/discord_social_sdk"]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[workspace.dependencies]
+discord_social_sdk_sys = { path = "crates/discord_social_sdk_sys", version = "0.1.0" }

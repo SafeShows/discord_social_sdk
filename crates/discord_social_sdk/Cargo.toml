@@ -1,0 +1,13 @@
+[package]
+name = "discord_social_sdk"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Safe Rust bindings to the Discord Social SDK"
+
+[dependencies]
+discord_social_sdk_sys.workspace = true
+
+[features]
+default = []
+krisp = ["discord_social_sdk_sys/krisp"]

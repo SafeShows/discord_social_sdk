@@ -1,0 +1,15 @@
+[package]
+name = "discord_social_sdk_sys"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Raw FFI bindings to the Discord Social SDK"
+links = "discord_partner_sdk"
+
+[build-dependencies]
+bindgen = "0.71"
+
+[features]
+default = []
+# Link the Krisp noise-cancellation variant of the SDK.
+krisp = []
