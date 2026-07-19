@@ -1,0 +1,47 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="OAuth2 authorization: arguments, PKCE code challenge/verifier pairs."><title>discord_social_sdk::auth - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-aa0817cf.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="discord_social_sdk" data-themes="" data-resource-suffix="" data-rustdoc-version="1.90.0 (1159e78c4 2025-09-14)" data-channel="1.90.0" data-search-js="search-fa3e91e5.js" data-settings-js="settings-5514c975.js" ><script src="../../static.files/storage-68b7e25d.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../static.files/main-eebb9057.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-32bb7600.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../discord_social_sdk/index.html">discord_<wbr>social_<wbr>sdk</a><span class="version">0.1.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module auth</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#the-flow-the-sdk-models" title="The flow the SDK models">The flow the SDK models</a></li><li><a href="#pkce" title="PKCE">PKCE</a></li><li><a href="#device-flow" title="Device flow">Device flow</a></li><li><a href="#secrets" title="Secrets">Secrets</a></li></ul><h3><a href="#structs">Module Items</a></h3><ul class="block"><li><a href="#structs" title="Structs">Structs</a></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="../index.html">In crate discord_<wbr>social_<wbr>sdk</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../index.html">discord_social_sdk</a></div><h1>Module <span>auth</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../src/discord_social_sdk/auth.rs.html#1-529">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>OAuth2 authorization: arguments, PKCE code challenge/verifier pairs.</p>
+<p>Everything the SDK does on a user’s behalf requires an OAuth2 access token.
+This module holds the parameter objects for the flows that obtain one; the
+functions that actually run those flows live on <code>Client</code>.</p>
+<h2 id="the-flow-the-sdk-models"><a class="doc-anchor" href="#the-flow-the-sdk-models">§</a>The flow the SDK models</h2>
+<ol>
+<li><strong>Authorize.</strong> Build <a href="struct.AuthorizationArgs.html" title="struct discord_social_sdk::auth::AuthorizationArgs"><code>AuthorizationArgs</code></a> — at minimum a scope string,
+which for most games is one of the client’s default scope constants — and
+pass it to <code>Client::authorize</code>. The SDK opens Discord (or a browser),
+runs a loopback web server to catch the redirect, and hands back an
+<em>authorization code</em>. That code is not a token.</li>
+<li><strong>Exchange.</strong> The code must be traded for an access token. Public clients
+can do this in-process with <code>Client::get_token</code>, which requires the PKCE
+pair described below. Apps with a backend should instead perform the
+exchange server-side, which is also what lets provisional accounts later
+“upgrade” into full Discord accounts.</li>
+<li><strong>Refresh.</strong> Access tokens obtained this way expire (7 days for the
+device flow); the accompanying refresh token does not currently expire
+and is used to mint new access tokens.</li>
+</ol>
+<h2 id="pkce"><a class="doc-anchor" href="#pkce">§</a>PKCE</h2>
+<p>When the token exchange happens inside the game process there is no client
+secret to prove the exchange came from whoever started the flow. PKCE closes
+that gap: <code>Client::create_authorization_code_verifier</code> generates an
+<a href="struct.AuthorizationCodeVerifier.html" title="struct discord_social_sdk::auth::AuthorizationCodeVerifier"><code>AuthorizationCodeVerifier</code></a>, whose
+<a href="struct.AuthorizationCodeVerifier.html#method.challenge" title="method discord_social_sdk::auth::AuthorizationCodeVerifier::challenge"><code>challenge</code></a> goes into
+<a href="struct.AuthorizationArgs.html#method.set_code_challenge" title="method discord_social_sdk::auth::AuthorizationArgs::set_code_challenge"><code>AuthorizationArgs::set_code_challenge</code></a> and whose
+<a href="struct.AuthorizationCodeVerifier.html#method.verifier" title="method discord_social_sdk::auth::AuthorizationCodeVerifier::verifier"><code>verifier</code></a> goes into the later token
+exchange. This crate never generates these values itself — the SDK does.</p>
+<h2 id="device-flow"><a class="doc-anchor" href="#device-flow">§</a>Device flow</h2>
+<p>On consoles, smart TVs and other limited-input devices,
+<a href="struct.DeviceAuthorizationArgs.html" title="struct discord_social_sdk::auth::DeviceAuthorizationArgs"><code>DeviceAuthorizationArgs</code></a> feeds <code>Client::get_token_from_device</code>, which
+shows a short code the user enters on a second device instead of having them
+type credentials in place.</p>
+<h2 id="secrets"><a class="doc-anchor" href="#secrets">§</a>Secrets</h2>
+<p>Values here that must never reach logs, telemetry or crash reports:</p>
+<ul>
+<li>the <strong>code verifier</strong> (<a href="struct.AuthorizationCodeVerifier.html#method.verifier" title="method discord_social_sdk::auth::AuthorizationCodeVerifier::verifier"><code>AuthorizationCodeVerifier::verifier</code></a>) — anyone
+holding it alongside an intercepted authorization code can redeem a token;</li>
+<li>the <strong>state</strong> and <strong>nonce</strong> (<a href="struct.AuthorizationArgs.html#method.state" title="method discord_social_sdk::auth::AuthorizationArgs::state"><code>AuthorizationArgs::state</code></a>,
+<a href="struct.AuthorizationArgs.html#method.nonce" title="method discord_social_sdk::auth::AuthorizationArgs::nonce"><code>AuthorizationArgs::nonce</code></a>) — anti-CSRF and anti-replay values whose
+whole security property is being unpredictable.</li>
+</ul>
+<p>The <a href="https://doc.rust-lang.org/1.90.0/core/fmt/macros/derive.Debug.html" title="derive core::fmt::macros::Debug"><code>Debug</code></a> impls in this module redact all three. The <em>challenge</em> is a
+hash of the verifier, travels in the clear as part of the authorization URL,
+and is safe to print.</p>
+</div></details><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.AuthorizationArgs.html" title="struct discord_social_sdk::auth::AuthorizationArgs">Authorization<wbr>Args</a></dt><dd>Arguments to <code>Client::authorize</code>.</dd><dt><a class="struct" href="struct.AuthorizationCodeChallenge.html" title="struct discord_social_sdk::auth::AuthorizationCodeChallenge">Authorization<wbr>Code<wbr>Challenge</a></dt><dd>The challenge half of a PKCE code verification pair.</dd><dt><a class="struct" href="struct.AuthorizationCodeVerifier.html" title="struct discord_social_sdk::auth::AuthorizationCodeVerifier">Authorization<wbr>Code<wbr>Verifier</a></dt><dd>A PKCE code verification pair: the secret verifier and its challenge.</dd><dt><a class="struct" href="struct.DeviceAuthorizationArgs.html" title="struct discord_social_sdk::auth::DeviceAuthorizationArgs">Device<wbr>Authorization<wbr>Args</a></dt><dd>Arguments to <code>Client::get_token_from_device</code>.</dd></dl></section></div></main></body></html>
