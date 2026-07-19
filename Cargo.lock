@@ -65,14 +65,14 @@ dependencies = [
 
 [[package]]
 name = "discord_social_sdk"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "discord_social_sdk_sys",
 ]
 
 [[package]]
 name = "discord_social_sdk_sys"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "bindgen",
 ]
